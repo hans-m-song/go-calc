@@ -68,7 +68,7 @@ func Repl(ctx context.Context, input *os.File) error {
 			}
 
 			// parse
-			var tokens []parse.Token
+			var tokens *parse.TokenStack
 			if tokens, err = parse.Tokenize(raw); err != nil || tokens == nil {
 				log.Err(err).Msg("could not process input")
 				continue // ignore

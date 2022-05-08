@@ -7,6 +7,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+func createPointerAt(pad int) string {
+	pointer := ""
+	// offset for prompt
+	for len(pointer) < pad {
+		pointer += " "
+	}
+	pointer += "^"
+	return pointer
+}
+
 func lookAhead(input *bytes.Buffer, match func(rune) bool) (bool, error) {
 	var r rune
 	var err error
@@ -22,11 +32,11 @@ func lookAhead(input *bytes.Buffer, match func(rune) bool) (bool, error) {
 	return match(r), nil
 }
 
-func consumeMatchedRunes(start rune, input *bytes.Buffer, match func(rune) bool) (string, error) {
+func consumeMatchedRunes(input *bytes.Buffer, match func(rune) bool) (string, error) {
 	var r rune
 	var err error
 
-	result := string(start)
+	result := ""
 	for len(input.Bytes()) > 0 {
 		var matched bool
 		if matched, err = lookAhead(input, match); err != nil {
@@ -47,56 +57,68 @@ func consumeMatchedRunes(start rune, input *bytes.Buffer, match func(rune) bool)
 	return result, nil
 }
 
-func Tokenize(input *bytes.Buffer) ([]Token, error) {
+func consumeWord(input *bytes.Buffer) (string, int, error) {
+	matchNotWhitespace := func(r rune) bool { return !matchWhitespace(string(r)) && !matchSyntax(string(r)) }
+	matchOnlyWhitespace := func(r rune) bool { return matchWhitespace(string(r)) }
+
+	var word string
+	var whitespace string
+	var err error
+	if word, err = consumeMatchedRunes(input, matchNotWhitespace); err != nil {
+		return word, len(word), err
+	}
+
+	if _, err = consumeMatchedRunes(input, matchOnlyWhitespace); err != nil {
+		return word, len(word), err
+	}
+
+	return word, len(word + whitespace), nil
+}
+
+func Tokenize(input *bytes.Buffer) (*TokenStack, error) {
 	if input == nil {
 		return nil, fmt.Errorf("no input to read from")
 	}
 
-	result := []Token{}
+	result := new(TokenStack)
 	var position int
-	var r rune
-	var value string
+	var word string
+	var width int
 	var err error
 
 	for len(input.Bytes()) > 0 {
-		if r, _, err = input.ReadRune(); err != nil {
-			return nil, fmt.Errorf("could not read rune from input: %s", err.Error())
+		if word, width, err = consumeWord(input); err != nil {
+			return nil, fmt.Errorf("failed to read word: %s", err.Error())
 		}
 
+		fmt.Println("word", word)
+
 		switch {
-		case matchSymbol(r):
-			result = append(result, Token{Type: tokenTypeSymbol, Value: string(r)})
-			position += 1
+		case matchOpCode(word):
+			result.Push(Token{Type: tokenTypeOpCode, Value: string(word)})
 
-		case matchNumber(r):
-			if value, err = consumeMatchedRunes(r, input, matchNumber); err != nil {
-				return nil, fmt.Errorf("could not read numbers: %s", err.Error())
-			}
+		case matchSyntax(word):
+			result.Push(Token{Type: tokenTypeSyntax, Value: string(word)})
 
-			result = append(result, Token{Type: tokenTypeNumber, Value: value})
-			position += len(value)
+		case matchIdentifier(word):
+			result.Push(Token{Type: tokenTypeIdentifier, Value: word})
 
-		case matchAlpha(r):
-			if value, err = consumeMatchedRunes(r, input, matchAlpha); err != nil {
-				return nil, fmt.Errorf("could not read alpha: %s", err.Error())
-			}
-
-			result = append(result, Token{Type: tokenTypeAlpha, Value: value})
-			position += len(value)
-
-		// ignored
-		case matchNoop(r):
-			position += 1
+		case matchNumber(word):
+			result.Push(Token{Type: tokenTypeNumber, Value: word})
 
 		// unhandled
 		default:
-			return nil, fmt.Errorf("unhandled rune '%c' at position %d", r, position)
+			// offset +2 for prompt
+			fmt.Println(createPointerAt(position + 2))
+			return nil, fmt.Errorf("unhandled word '%s' at position %d", word, position)
 		}
+
+		position += width
 	}
 
 	log.Debug().
-		Strs("tokens", serializeTokens(result)).
-		Msg("parse successful")
+		Strs("tokens", result.Strings()).
+		Send()
 
 	return result, nil
 }
