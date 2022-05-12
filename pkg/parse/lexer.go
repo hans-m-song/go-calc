@@ -4,121 +4,83 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/hans-m-song/go-calc/pkg/util"
 	"github.com/rs/zerolog/log"
 )
 
-func createPointerAt(pad int) string {
-	pointer := ""
-	// offset for prompt
-	for len(pointer) < pad {
-		pointer += " "
-	}
-	pointer += "^"
-	return pointer
-}
-
-func lookAhead(input *bytes.Buffer, match func(rune) bool) (bool, error) {
-	var r rune
-	var err error
-
-	if r, _, err = input.ReadRune(); err != nil {
-		return false, err
-	}
-
-	if err = input.UnreadRune(); err != nil {
-		return false, err
-	}
-
-	return match(r), nil
-}
-
-func consumeMatchedRunes(input *bytes.Buffer, match func(rune) bool) (string, error) {
-	var r rune
-	var err error
-
-	result := ""
-	for len(input.Bytes()) > 0 {
-		var matched bool
-		if matched, err = lookAhead(input, match); err != nil {
-			return result, err
-		}
-
-		if !matched {
-			return result, nil
-		}
-
-		if r, _, err = input.ReadRune(); err != nil {
-			return "", fmt.Errorf("could not read rune from input: %s", err.Error())
-		}
-
-		result += string(r)
-	}
-
-	return result, nil
-}
-
-func consumeWord(input *bytes.Buffer) (string, int, error) {
-	matchNotWhitespace := func(r rune) bool { return !matchWhitespace(string(r)) && !matchSyntax(string(r)) }
-	matchOnlyWhitespace := func(r rune) bool { return matchWhitespace(string(r)) }
-
+func consumeWord(start string, buffer *util.Buffer, match util.MatchFn) (*Token, int, error) {
 	var word string
-	var whitespace string
 	var err error
-	if word, err = consumeMatchedRunes(input, matchNotWhitespace); err != nil {
-		return word, len(word), err
+
+	if word, err = buffer.ConsumeTo(match); err != nil {
+		return nil, 0, err
 	}
 
-	if _, err = consumeMatchedRunes(input, matchOnlyWhitespace); err != nil {
-		return word, len(word), err
-	}
-
-	return word, len(word + whitespace), nil
+	return NewToken(start + word), len(start + word), nil
 }
 
-func Tokenize(input *bytes.Buffer) (*TokenStack, error) {
+// Consumes from a buffer and processes result into tokens
+//
+// Returns a set of tokens and the position where an error ocurred (if any)
+func Tokenize(input *bytes.Buffer) (*TokenStack, int, error) {
 	if input == nil {
-		return nil, fmt.Errorf("no input to read from")
+		return nil, 0, fmt.Errorf("no input to read from")
 	}
 
-	result := new(TokenStack)
-	var position int
-	var word string
-	var width int
-	var err error
+	var (
+		buffer   = util.NewBuffer(input)
+		err      error
+		position = 0
+		result   TokenStack
+	)
 
 	for len(input.Bytes()) > 0 {
-		if word, width, err = consumeWord(input); err != nil {
-			return nil, fmt.Errorf("failed to read word: %s", err.Error())
-		}
+		var (
+			width int
+			char  string
+			token *Token
+		)
 
-		fmt.Println("word", word)
+		if char, err = buffer.Consume(); err != nil {
+			return nil, position, fmt.Errorf("failed to read character at position %d: %s", position, err.Error())
+		}
 
 		switch {
-		case matchOpCode(word):
-			result.Push(Token{Type: tokenTypeOpCode, Value: string(word)})
+		case MatchOpCodeToken(char), MatchSyntaxToken(char):
+			if token = NewToken(char); err != nil {
+				return nil, position, fmt.Errorf("failed to read number at position %d: %s", position, err.Error())
+			}
 
-		case matchSyntax(word):
-			result.Push(Token{Type: tokenTypeSyntax, Value: string(word)})
+		case MatchNumber(char):
+			if token, width, err = consumeWord(char, buffer, MatchNumber); err != nil || token == nil {
+				return nil, position, fmt.Errorf("failed to read number at position %d: %s", position, err.Error())
+			}
 
-		case matchIdentifier(word):
-			result.Push(Token{Type: tokenTypeIdentifier, Value: word})
+		case MatchIdentifier(char):
+			if token, width, err = consumeWord(char, buffer, MatchIdentifier); err != nil || token == nil {
+				return nil, position, fmt.Errorf("failed to read identifier at position %d: %s", position, err.Error())
+			}
 
-		case matchNumber(word):
-			result.Push(Token{Type: tokenTypeNumber, Value: word})
+		case MatchWhitespaceTokens(char):
+			width = 1
+			token = &TokenNoop
 
-		// unhandled
 		default:
-			// offset +2 for prompt
-			fmt.Println(createPointerAt(position + 2))
-			return nil, fmt.Errorf("unhandled word '%s' at position %d", word, position)
+			return nil, position, fmt.Errorf("unhandled character at position %d: '%s'", position, char)
+		}
+
+		if token == nil {
+			return nil, position, fmt.Errorf("did not match any token at position %d", position)
 		}
 
 		position += width
+		// discard
+		if !token.Equals(TokenNoop) {
+			result.Push(*token)
+		}
 	}
 
-	log.Debug().
-		Strs("tokens", result.Strings()).
-		Send()
+	log.Debug().Strs("tokens", result.Strings()).Send()
 
-	return result, nil
+	return &result, 0, nil
 }

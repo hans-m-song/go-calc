@@ -17,8 +17,8 @@ func init() {
 	flag.Parse()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:             os.Stdout,
-		FormatTimestamp: func(i interface{}) string { return "" },
+		Out:          os.Stdout,
+		PartsExclude: []string{"time"},
 	})
 
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

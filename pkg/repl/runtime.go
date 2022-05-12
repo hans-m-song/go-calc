@@ -8,19 +8,19 @@ import (
 	"os"
 
 	"github.com/hans-m-song/go-calc/pkg/parse"
-	"github.com/rs/zerolog/log"
 )
 
-func isStopChar(stop []rune, v rune) bool {
-	for _, r := range stop {
-		if r == v {
-			return true
-		}
+func createPointerAt(pad int) string {
+	pointer := ""
+	// offset for prompt
+	for len(pointer) < pad {
+		pointer += " "
 	}
-	return false
+	pointer += "^"
+	return pointer
 }
 
-func read(ctx context.Context, reader *bufio.Reader, stop []rune) (*bytes.Buffer, error) {
+func read(ctx context.Context, reader *bufio.Reader) (*bytes.Buffer, error) {
 	var raw bytes.Buffer
 	var err error
 
@@ -35,7 +35,7 @@ func read(ctx context.Context, reader *bufio.Reader, stop []rune) (*bytes.Buffer
 				return nil, err
 			}
 
-			if isStopChar(stop, r) {
+			if r == '\n' {
 				return &raw, nil
 			}
 
@@ -48,7 +48,6 @@ func read(ctx context.Context, reader *bufio.Reader, stop []rune) (*bytes.Buffer
 
 func Repl(ctx context.Context, input *os.File) error {
 	reader := bufio.NewReader(input)
-	stop := []rune{'\n'}
 	var raw *bytes.Buffer
 	var err error
 
@@ -63,14 +62,17 @@ func Repl(ctx context.Context, input *os.File) error {
 
 			// read
 			// TODO handle up for cmd history?
-			if raw, err = read(ctx, reader, stop); err != nil || raw == nil {
+			if raw, err = read(ctx, reader); err != nil || raw == nil {
 				return err
 			}
 
 			// parse
 			var tokens *parse.TokenStack
-			if tokens, err = parse.Tokenize(raw); err != nil || tokens == nil {
-				log.Err(err).Msg("could not process input")
+			var pointer int
+			if tokens, pointer, err = parse.Tokenize(raw); err != nil || tokens == nil {
+				// offset +2 for prompt
+				fmt.Println(createPointerAt(pointer + 2))
+				fmt.Printf("could not process input: %s\n", err.Error())
 				continue // ignore
 			}
 
