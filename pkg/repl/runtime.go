@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hans-m-song/go-calc/pkg/ast"
 	"github.com/hans-m-song/go-calc/pkg/parse"
 )
 
@@ -17,7 +18,7 @@ const (
 func createPointerAt(pad int) string {
 	pointer := ""
 	// offset for prompt
-	for len(promptStr+pointer) < pad {
+	for len(pointer) < len(promptStr)+pad {
 		pointer += " "
 	}
 	pointer += "^"
@@ -70,18 +71,41 @@ func Repl(ctx context.Context, input *os.File) error {
 				return err
 			}
 
+			if raw == nil {
+				fmt.Println("no input was given")
+				continue
+			}
+
 			// parse
-			var tokens *parse.TokenStack
+			var ts *parse.TokenStack
 			var pointer int
-			if tokens, pointer, err = parse.Tokenize(raw); err != nil || tokens == nil {
+			if ts, pointer, err = parse.Tokenize(raw); err != nil {
 				fmt.Println(createPointerAt(pointer))
 				fmt.Printf("could not process input: %s\n", err.Error())
 				continue
 			}
 
-			// TODO interpret
+			if ts == nil {
+				fmt.Println("no tokens were parsed")
+				continue
+			}
 
+			// semantic analysis
+			var tree ast.Node
+			if tree, pointer, err = ast.BuildAst(ts); err != nil {
+				fmt.Println(createPointerAt(pointer))
+				fmt.Printf("could not evaluate expression: %s\n", err.Error())
+				continue
+			}
+
+			if tree == nil {
+				fmt.Println("failed to generate ast")
+				continue
+			}
+
+			// TODO tree.Evaluate()
 			// TODO print
+			fmt.Println(">", tree.String())
 		}
 
 		// loop

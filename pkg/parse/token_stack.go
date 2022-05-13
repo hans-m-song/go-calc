@@ -32,7 +32,19 @@ func (ts *TokenStack) Pop() *Token {
 }
 
 func (ts *TokenStack) Push(token Token) {
+	if ts.Terminated() {
+		panic("cannot push to a terminated TokenStack")
+	}
+
 	ts.Tokens = append(ts.Tokens, token)
+}
+
+func (ts *TokenStack) Terminated() bool {
+	return len(ts.Tokens) > 0 && ts.Tokens[len(ts.Tokens)-1].Equals(TokenTerminator)
+}
+
+func (ts *TokenStack) Terminate() {
+	ts.Push(TokenTerminator)
 }
 
 func (ts TokenStack) Strings() []string {

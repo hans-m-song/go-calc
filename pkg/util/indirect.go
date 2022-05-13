@@ -1,3 +1,5 @@
 package util
 
-func IndirectStr(str string) *string { return &str }
+func IndirectString(input string) *string { return &input }
+
+func IndirectFloat(input float64) *float64 { return &input }

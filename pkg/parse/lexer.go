@@ -77,6 +77,6 @@ func Tokenize(input *bytes.Buffer) (*TokenStack, int, error) {
 	}
 
 	log.Debug().Strs("tokens", result.Strings()).Send()
-
+	result.Terminate()
 	return &result, 0, nil
 }

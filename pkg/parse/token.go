@@ -5,7 +5,7 @@ import (
 )
 
 type Token struct {
-	Symbol
+	Symbol   Symbol
 	Position int
 	Value    *string
 }
@@ -19,11 +19,12 @@ func (t Token) String() string {
 		return "noop"
 	}
 
-	return fmt.Sprintf("%s('%s')", t.Type, *t.Value)
+	return fmt.Sprintf("%s('%s')", t.Symbol.Type, *t.Value)
 }
 
 var (
-	TokenNoop = Token{Symbol: Symbol{Type: symbolTypeNoop}, Value: nil}
+	TokenTerminator = Token{Symbol: SymbolTerminator, Value: nil}
+	TokenNoop       = Token{Symbol: SymbolNoop, Value: nil}
 )
 
 func NewToken(value string, position int) *Token {
@@ -34,11 +35,7 @@ func NewToken(value string, position int) *Token {
 				tokenValue = &value
 			}
 
-			return &Token{
-				Symbol:   symbol,
-				Position: position,
-				Value:    tokenValue,
-			}
+			return &Token{Symbol: symbol, Position: position, Value: tokenValue}
 		}
 	}
 

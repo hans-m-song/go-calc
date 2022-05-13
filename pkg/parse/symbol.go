@@ -42,8 +42,12 @@ var (
 	SymbolSynRparen  = Symbol{Type: symbolTypeSyntax, Match: func(s string) bool { return s == TOKEN_RPAREN }}
 	SymbolNumber     = Symbol{Type: symbolTypeNumber, Match: numberMatcher.MatchString}
 	SymbolIdentifier = Symbol{Type: symbolTypeIdentifier, Match: alphanumericMatcher.MatchString}
+	SymbolTerminator = Symbol{Type: symbolTypeNoop, Match: func(string) bool { return false }}
 
 	SymbolTable = []Symbol{
+		// should never match SymbolTerminator
+
+		SymbolNoop,
 		SymbolOpPlus,
 		SymbolOpMinus,
 		SymbolOpDivide,
@@ -55,3 +59,41 @@ var (
 		SymbolIdentifier,
 	}
 )
+
+func (s Symbol) FollowSet() []Symbol {
+	switch {
+
+	case s.Equals(SymbolOpPlus), s.Equals(SymbolOpMinus), s.Equals(SymbolOpDivide), s.Equals(SymbolOpMultiply):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolSynLparen, SymbolNumber, SymbolIdentifier}
+
+	case s.Equals(SymbolSynAssign):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolSynLparen, SymbolNumber, SymbolIdentifier}
+
+	case s.Equals(SymbolSynLparen):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolNumber, SymbolIdentifier}
+
+	case s.Equals(SymbolSynRparen):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolOpDivide, SymbolOpMultiply, SymbolTerminator}
+
+	case s.Equals(SymbolNumber):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolOpDivide, SymbolOpMultiply, SymbolTerminator}
+
+	case s.Equals(SymbolIdentifier):
+		return []Symbol{SymbolOpPlus, SymbolOpMinus, SymbolOpDivide, SymbolOpMultiply, SymbolSynAssign, SymbolTerminator}
+
+	case s.Equals(SymbolTerminator), s.Equals(SymbolNoop):
+		fallthrough
+	default:
+		return []Symbol{}
+	}
+}
+
+func (s Symbol) IsFollower(symbol Symbol) bool {
+	for _, follower := range s.FollowSet() {
+		if symbol.Equals(follower) {
+			return true
+		}
+	}
+
+	return false
+}
