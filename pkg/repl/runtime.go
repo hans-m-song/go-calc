@@ -10,10 +10,14 @@ import (
 	"github.com/hans-m-song/go-calc/pkg/parse"
 )
 
+const (
+	promptStr = "# "
+)
+
 func createPointerAt(pad int) string {
 	pointer := ""
 	// offset for prompt
-	for len(pointer) < pad {
+	for len(promptStr+pointer) < pad {
 		pointer += " "
 	}
 	pointer += "^"
@@ -58,7 +62,7 @@ func Repl(ctx context.Context, input *os.File) error {
 
 		default:
 			// prompt
-			fmt.Print("# ")
+			fmt.Print(promptStr)
 
 			// read
 			// TODO handle up for cmd history?
@@ -70,10 +74,9 @@ func Repl(ctx context.Context, input *os.File) error {
 			var tokens *parse.TokenStack
 			var pointer int
 			if tokens, pointer, err = parse.Tokenize(raw); err != nil || tokens == nil {
-				// offset +2 for prompt
-				fmt.Println(createPointerAt(pointer + 2))
+				fmt.Println(createPointerAt(pointer))
 				fmt.Printf("could not process input: %s\n", err.Error())
-				continue // ignore
+				continue
 			}
 
 			// TODO interpret

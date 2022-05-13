@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func consumeWord(start string, buffer *util.Buffer, match util.MatchFn) (*Token, int, error) {
+func consumeWord(start string, buffer *util.Buffer, position int, match util.MatchFn) (*Token, int, error) {
 	var word string
 	var err error
 
@@ -16,7 +16,7 @@ func consumeWord(start string, buffer *util.Buffer, match util.MatchFn) (*Token,
 		return nil, 0, err
 	}
 
-	return NewToken(start + word), len(start + word), nil
+	return NewToken(start+word, position), len(start + word), nil
 }
 
 // Consumes from a buffer and processes result into tokens
@@ -46,24 +46,20 @@ func Tokenize(input *bytes.Buffer) (*TokenStack, int, error) {
 		}
 
 		switch {
-		case MatchOpCodeToken(char), MatchSyntaxToken(char):
-			if token = NewToken(char); err != nil {
+		case MatchOperatorToken(char), MatchSyntaxToken(char), MatchWhitespaceTokens(char):
+			if token = NewToken(char, position); err != nil {
 				return nil, position, fmt.Errorf("failed to read number at position %d: %s", position, err.Error())
 			}
 
 		case MatchNumber(char):
-			if token, width, err = consumeWord(char, buffer, MatchNumber); err != nil || token == nil {
+			if token, width, err = consumeWord(char, buffer, position, MatchNumber); err != nil || token == nil {
 				return nil, position, fmt.Errorf("failed to read number at position %d: %s", position, err.Error())
 			}
 
 		case MatchIdentifier(char):
-			if token, width, err = consumeWord(char, buffer, MatchIdentifier); err != nil || token == nil {
+			if token, width, err = consumeWord(char, buffer, position, MatchIdentifier); err != nil || token == nil {
 				return nil, position, fmt.Errorf("failed to read identifier at position %d: %s", position, err.Error())
 			}
-
-		case MatchWhitespaceTokens(char):
-			width = 1
-			token = &TokenNoop
 
 		default:
 			return nil, position, fmt.Errorf("unhandled character at position %d: '%s'", position, char)
